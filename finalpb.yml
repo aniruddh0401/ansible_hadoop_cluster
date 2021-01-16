@@ -1,0 +1,109 @@
+- hosts : slave
+  vars_prompt :
+   - name : dirname
+     private : no
+     prompt : "ENTER DIRECTORY NAME FOR DATANODE DIRECTORY:"
+
+  tasks:
+   - name: "Transferring Java software"
+     copy:
+         src: "/root/jdk-8u171-linux-x64.rpm"
+         dest: "/root"
+
+   - name: "Transferring hadoop software"
+     copy:
+         src: "/root/hadoop-1.2.1-1.x86_64.rpm"
+         dest: "/root/"
+
+   - name: "Installing hadoop"
+     command: "rpm -ivh hadoop-1.2.1-1.x86_64.rpm --force"
+     ignore_errors: yes
+   - yum :
+         name : "/jdk-8u171-linux-x64.rpm"
+         disable_gpg_check : yes
+         state : present
+   - name: "Creating Data node directory"
+     file :
+         path : "/{{ dirname }}"
+         state : directory
+     ignore_errors: yes
+   - template :
+         src : "/ansible_ws1/hadoop2/slave_hdfs_site.xml"
+         dest : "/etc/hadoop/hdfs-site.xml"
+   - template :
+         src : "/ansible_ws1/hadoop2/slave_core_site.xml"
+         dest : "/etc/hadoop/core-site.xml"
+   - name: "Starting hadoop services for data node"
+     command: "hadoop-daemon.sh start datanode"
+     register: service
+   - name: for connection of namenode and datanode
+     ansible.posix.firewalld:
+         port : "9001/tcp"
+         state: enabled
+         permanent : yes
+         immediate : yes
+     ignore_errors : true
+   - debug:
+         var: service
+   - name: "Checking the status of data node"
+     command: "jps"
+     register: b
+   - debug:
+         var: b.stdout_lines
+- hosts : master
+  vars_prompt :
+   - name : dirname
+     private : no
+     prompt : "ENTER DIRECTORY NAME FOR DATANODE DIRECTORY:"
+
+  tasks:
+   - name: "Transferring Java software"
+     copy:
+         src: "/root/jdk-8u171-linux-x64.rpm"
+         dest: "/root"
+
+   - name: "Transferring hadoop software"
+     copy:
+         src: "/root/hadoop-1.2.1-1.x86_64.rpm"
+         dest: "/root/"
+
+   - name: "Installing hadoop"
+     command: "rpm -ivh hadoop-1.2.1-1.x86_64.rpm --force"
+     ignore_errors: yes
+
+   - yum :
+         name : "/jdk-8u171-linux-x64.rpm"
+         disable_gpg_check : yes
+         state : present
+
+   - name: "Creating Data node directory"
+     file :
+         path : "/{{ dirname }}"
+         state : directory
+     ignore_errors: yes
+   - template :
+         src : "/ansible_ws1/hadoop2/master_hdfs_site.xml"
+         dest : "/etc/hadoop/hdfs-site.xml"
+   - template :
+         src : "/ansible_ws1/hadoop2/master_core_site.xml"
+         dest : "/etc/hadoop/core-site.xml"
+   - name: "Formatting Name Node Directory"
+     shell: "echo Y | hadoop namenode -format"
+     register: format
+   - debug:
+           var: format
+   - name: starting namenode
+     shell: "hadoop-daemon.sh start namenode"     
+   - name: for connection of namenode and datanode
+     ansible.posix.firewalld:
+          port : "9001/tcp"
+          state: enabled
+          permanent : yes
+          immediate : yes
+     ignore_errors : true
+  
+   - name: "Checking datanodes connected to masternode"
+     shell: "jps"
+     register: a
+   - debug:
+         var: a.stdout_lines
